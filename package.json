@@ -8,12 +8,16 @@
     "ajv-draft-04": "^1.0.0",
     "axios": "^1.7.2",
     "bignumber.js": "^9.1.2",
+    "cli-table3": "^0.6.5",
     "dotenv": "^16.4.5",
     "ethers": "^5.7.0",
     "fs-extra": "^11.2.0",
     "generate-schema": "^2.6.0",
+    "ora-classic": "^5.4.2",
     "perf_hooks": "^0.0.1",
-    "sinon": "^18.0.0"
+    "prompts": "^2.4.2",
+    "sinon": "^18.0.0",
+    "tiny-chalk": "v2"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-waffle": "^2.0.6",
