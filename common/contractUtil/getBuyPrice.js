@@ -1,5 +1,5 @@
-const { ethers } = require('ethers');
-const abi = require('../../abi/GambitBitsV3ABI.json');
+const { ethers } = require("ethers");
+const abi = require("../../abi/GambitBitsV3ABI.json");
 /**
  * Fetches the buy price for a specified amount of bits for a gamer from a specified contract.
  *
@@ -11,16 +11,29 @@ const abi = require('../../abi/GambitBitsV3ABI.json');
  * @returns {Promise<ethers.BigNumber>} A promise that resolves to the buy price for the specified amount of bits.
  * @throws Will throw an error if the buy price cannot be fetched.
  */
-async function getBuyPrice(gamer, amount, provider, contractAddress, blockNumber = 'latest') {
-    try {
-        const contract = new ethers.Contract(contractAddress, abi, provider);
-        const buyPrice = await contract.getBuyPrice(gamer, amount, { blockTag: blockNumber });
-        console.log(`Buy price for gamer ${gamer} with amount ${amount} at block ${blockNumber}: ${buyPrice.toString()}`);
-        return buyPrice;
-    } catch (error) {
-        console.error(`Failed to fetch buy price: ${error.message}`);
-        throw error;
+async function getBuyPrice(
+  gamer,
+  amount,
+  provider,
+  contractAddress,
+  blockNumber = "latest",
+  silentMode = false
+) {
+  try {
+    const contract = new ethers.Contract(contractAddress, abi, provider);
+    const buyPrice = await contract.getBuyPrice(gamer, amount, {
+      blockTag: blockNumber,
+    });
+    if (!silentMode) {
+      console.log(
+        `Buy price for gamer ${gamer} with amount ${amount} at block ${blockNumber}: ${buyPrice.toString()}`
+      );
     }
+    return buyPrice;
+  } catch (error) {
+    console.error(`Failed to fetch buy price: ${error.message}`);
+    throw error;
+  }
 }
 
 module.exports = { getBuyPrice };
