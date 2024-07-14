@@ -5,7 +5,7 @@
  * The functions implemented include holderOwnedBitAge, gamerWithinMaxAge, gamerTotalBitsInCirculation,
  * gamerBitsWithinMaxIdleTime, gamerBitWithinMaxBuyPrice, gamerWinRate, bitProfitThreshold, buyUpTo, and sellBit.
  * Each function utilizes underlying implementations from the conditions and actions modules.
- * 
+ *
  * @module common/functions
  */
 const {
@@ -20,15 +20,22 @@ const {
   gamerSupplyDownTickImpl,
   gamerTotalBitsInCirculationExcludeOwnStakeImpl,
   gamerSumKillsImpl,
-  gamesPlayedImpl
-} = require('./conditions/conditions');
-const { buyUpToImpl, sellBitImpl, sellBitFromAutoSelectedFleetKeyImpl } = require('./actions/actions');
+  gamesPlayedImpl,
+  copyTradeImpl,
+} = require("./conditions/conditions");
+const {
+  buyUpToImpl,
+  copyBuyImpl,
+  sellBitImpl,
+  copySellImpl,
+  sellBitFromAutoSelectedFleetKeyImpl,
+} = require("./actions/actions");
 
-async function gamerSupplyDownTick(ctx, value){
+async function gamerSupplyDownTick(ctx, value) {
   return await gamerSupplyDownTickImpl(ctx, value);
 }
 
-async function gamerSupplyUpTick(ctx, value){
+async function gamerSupplyUpTick(ctx, value) {
   return await gamerSupplyUpTickImpl(ctx, value);
 }
 
@@ -36,8 +43,16 @@ async function sellBitFromAutoSelectedFleetKey(ctx, value) {
   await sellBitFromAutoSelectedFleetKeyImpl(ctx, value);
 }
 
-async function gamerTotalBitsInCirculationExcludeOwnStake(ctx, operator, value) {
-  return await gamerTotalBitsInCirculationExcludeOwnStakeImpl (ctx, operator, value);
+async function gamerTotalBitsInCirculationExcludeOwnStake(
+  ctx,
+  operator,
+  value
+) {
+  return await gamerTotalBitsInCirculationExcludeOwnStakeImpl(
+    ctx,
+    operator,
+    value
+  );
 }
 
 async function holderOwnedBitAge(ctx, operator, value) {
@@ -80,8 +95,20 @@ async function buyUpTo(ctx, value) {
   await buyUpToImpl(ctx, value);
 }
 
+async function copyBuy(ctx, quantity, isInitialFill) {
+  return await copyBuyImpl(ctx, quantity, isInitialFill);
+}
+
 async function sellBit(ctx) {
   await sellBitImpl(ctx);
+}
+
+async function copySell(ctx, quantity) {
+  return await copySellImpl(ctx, quantity);
+}
+
+async function copyTrade(ctx, value) {
+  return await copyTradeImpl(ctx, value);
 }
 
 module.exports = {
@@ -99,5 +126,8 @@ module.exports = {
   gamerTotalBitsInCirculationExcludeOwnStake,
   sellBitFromAutoSelectedFleetKey,
   gamerSumKills,
-  gamesPlayed
+  gamesPlayed,
+  copyTrade,
+  copyBuy,
+  copySell,
 };

@@ -1,12 +1,14 @@
 [
   {
-    "ruleID": "triggerHappy",
-    "invokeBy": ["chainIndexer"],
+    "ruleID": "copyTradeBuy",
+    "invokeBy": [
+      "chainIndexer"
+    ],
     "conditions": [
       {
-        "expression": "gamesPlayed('>', 1)"
+        "expression": "copyTrade(test_portfolio)"
       }
     ],
-    "action": "buyUpTo(1)"
+    "action": "copyBuy(COPY_QTY, false)"
   }
 ]

@@ -78,6 +78,55 @@ class CopyTradeUtil {
       totalBuyPriceInEthers,
     };
   }
+
+  static async adjustBuyTargetAmountToMeetConfiguredStopLoss(
+    gamer,
+    pandLResults,
+    initialPortfolioValuation,
+    targetPortfolioValuation,
+    quantity
+  ) {
+    const currentPortfolioValuation =
+      pandLResults &&
+      pandLResults["total"] &&
+      pandLResults["total"]["absoluteProfit"]
+        ? parseFloat(pandLResults["total"]["absoluteProfit"]) +
+          initialPortfolioValuation
+        : initialPortfolioValuation;
+
+    if (currentPortfolioValuation <= targetPortfolioValuation) {
+      // less than because we are looking for a stop loss
+      return 0;
+    } else {
+      const availablePortfolioValuation =
+        targetPortfolioValuation - currentPortfolioValuation;
+      const provider = new ethers.providers.JsonRpcProvider(providerURL);
+
+      // Start with the quantity and keep reducing it until the buy price is less than or equal to the available portfolio valuation
+      while (quantity > 0) {
+        const buyPriceInWei = await getBuyPrice(
+          gamer,
+          quantity,
+          provider,
+          contractAddress,
+          "latest",
+          true
+        );
+        const buyPriceInEthers = await convertBitsPriceWeiToEther(
+          provider,
+          buyPriceInWei
+        );
+
+        if (buyPriceInEthers <= availablePortfolioValuation) {
+          return quantity;
+        } else {
+          quantity--;
+        }
+      }
+
+      return quantity;
+    }
+  }
 }
 
 module.exports = CopyTradeUtil;

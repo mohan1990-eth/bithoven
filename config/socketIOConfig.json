@@ -1,0 +1,14 @@
+{
+  "copyTradeServerPort": 7000,
+  "copyTradeSetupScriptPort": 7001,
+  "events": {
+    "COPY_TRADE_BUY_FILL_POSITIONS": {
+      "name": "COPY_TRADE_BUY_FILL_POSITIONS",
+      "description": "Event emitted when a copy trade fill positions is requested from setupCopyTradePortfolio.js"
+    },
+    "COPY_TRADE_BUY_POSITIONS_FILLED": {
+      "name": "COPY_TRADE_BUY_POSITIONS_FILLED",
+      "description": "Event emitted when a copy trade buy fill positions requested from setupCopyTradePortfolio.js is completed"
+    }
+  }
+}

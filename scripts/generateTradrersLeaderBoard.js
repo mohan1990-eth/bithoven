@@ -67,7 +67,7 @@ async function generateTradrersLeaderBoard() {
         ...pandL,
       }))
       .sort((a, b) => b.absoluteProfit - a.absoluteProfit)
-      .slice(0, 20)
+      .slice(0, 30)
       .forEach(
         (
           { holder, absoluteProfit, percentProfit, adjustedInitialInvestment },

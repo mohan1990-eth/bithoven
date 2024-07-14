@@ -1,12 +1,19 @@
 const fs = require("fs");
+const http = require("http");
 const path = require("path");
 const prompts = require("prompts");
 const Table = require("cli-table3");
 const { ethers } = require("ethers");
 const { greenBright, bold, magentaBright, cyanBright } = require("tiny-chalk");
+const socketIo = require("socket.io");
+const io = require("socket.io-client");
+const sockeIOConfig = require("../config/socketIOConfig.json");
 const ora = require("ora-classic");
 const { JSONStore } = require("../store/JSONStore");
 const TradeUtil = require("../common/trade/tradeUtil");
+const {
+  validatePortfolioNameAndReturnPortfolioObject,
+} = require("../common/portfolioHelper");
 const CopyTradeUtil = require("../common/trade/copyTradeUtil");
 const readline = require("readline");
 
@@ -28,6 +35,11 @@ function readJsonFile(filePath) {
 // Function to write JSON file
 function writeJsonFile(filePath, portfolioData) {
   fs.writeFileSync(filePath, JSON.stringify(portfolioData, null, 2));
+}
+
+function calculateKeccak256HashOfString(str) {
+  const hash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(str));
+  return hash;
 }
 
 // Function to check if addresses are unique and not present in existing data
@@ -66,8 +78,25 @@ async function setupCopyTradePortfolio() {
       type: "text",
       name: "portfolioName",
       message: "Enter the name of the copy trade portfolio:",
-      validate: (name) =>
-        name.trim() !== "" ? true : "Portfolio name cannot be empty.",
+      validate: (name) => {
+        name = name.trim();
+        if (name === "") return "Portfolio name cannot be empty.";
+        try {
+          const existingPortfolio =
+            validatePortfolioNameAndReturnPortfolioObject(name);
+          if (existingPortfolio != null) {
+            return (
+              "Portfolio " +
+              name +
+              " exists already. Please try again with a different portfolio name."
+            );
+          }
+          return true;
+        } catch (ex) {
+          // validatePortfolioNameAndReturnPortfolioObject() throws exception is portfolio by the given name is not found
+          return true;
+        }
+      },
     },
     {
       type: "list",
@@ -267,7 +296,7 @@ async function setupCopyTradePortfolio() {
         cyanBright(totalBuyPriceInEthers)
       )}. Minimum Stop Loss Percentage is ${bold(
         cyanBright(minStopLossPercent)
-      )} and Minimum Stop Loss Percentage is ${bold(
+      )} and Maximum Stop Loss Percentage is ${bold(
         cyanBright(maxStopLossPercent)
       )}`,
       validate: (value) =>
@@ -279,23 +308,143 @@ async function setupCopyTradePortfolio() {
     const { stopLossPercent } = response3;
 
     newPortfolioEntry["newPortfolioInitialPositions"] =
-      newPortfolioInitialPositions;
+      calculatedInitialPositions;
     newPortfolioEntry["initialPortfolioValuationWei"] = totalBuyPriceInWei;
     newPortfolioEntry["initialPortfolioValuationEthers"] =
       totalBuyPriceInEthers;
     newPortfolioEntry["stopLossPercent"] = stopLossPercent;
+
+    newPortfolioEntry["copyTradeStrategy"] = copyTradeStrategy;
+    newPortfolioEntry["createTimeUTC"] = new Date().toUTCString();
+
+    // Append the new entry to the JSON data
+    existingPortfolioData.push(newPortfolioEntry);
+
+    // Write the updated JSON data back to the file
+    writeJsonFile(portfolioConfigPath, existingPortfolioData);
+
+    let buyRules = readJsonFile(
+      path.resolve(__dirname, "../rules/buy/buyRules.json")
+    );
+    let sellRules = readJsonFile(
+      path.resolve(__dirname, "../rules/sell/sellRules.json")
+    );
+
+    const copyBuyRule = {
+      ruleID: "copyTradeBuy",
+      invokeBy: ["chainIndexer"],
+      conditions: [
+        {
+          expression: "copyTrade(" + portfolioName + ")",
+        },
+      ],
+      action: "copyBuy(COPY_QTY, false)", // false indicates, it is not an initial fill
+    };
+
+    const copySellRule = {
+      ruleID: "copyTradeSell",
+      invokeBy: ["chainIndexer"],
+      conditions: [
+        {
+          expression: "copyTrade(" + portfolioName + ")",
+        },
+      ],
+      action: "copySell(COPY_QTY)",
+    };
+
+    // Ensure the copy buy rule for the current portfolio does not exist in the buyRules.json file already
+
+    let doesBuyRuleExistAlready = false;
+    const hashOfCopyBuyRule = calculateKeccak256HashOfString(
+      JSON.stringify(copyBuyRule)
+    );
+
+    for (let i = 0; i < buyRules.length; ++i) {
+      const hashOfBuyRule = calculateKeccak256HashOfString(
+        JSON.stringify(buyRules[i])
+      );
+
+      if (hashOfCopyBuyRule == hashOfBuyRule) {
+        doesBuyRuleExistAlready = true;
+        break;
+      }
+    }
+
+    if (!doesBuyRuleExistAlready) {
+      buyRules.push(copyBuyRule);
+    }
+
+    // Ensure the copy sell rule for the current portfolio does not exist in the sellRules.json file already
+
+    let doesSellRuleExistAlready = false;
+    const hashOfCopySellRule = calculateKeccak256HashOfString(
+      JSON.stringify(copySellRule)
+    );
+
+    for (let i = 0; i < sellRules.length; ++i) {
+      const hashOfSellRule = calculateKeccak256HashOfString(
+        JSON.stringify(sellRules[i])
+      );
+
+      if (hashOfCopySellRule == hashOfSellRule) {
+        doesSellRuleExistAlready = true;
+        break;
+      }
+    }
+
+    if (!doesSellRuleExistAlready) {
+      sellRules.push(copySellRule);
+    }
+
+    writeJsonFile(
+      path.resolve(__dirname, "../rules/buy/buyRules.json"),
+      buyRules
+    );
+    writeJsonFile(
+      path.resolve(__dirname, "../rules/sell/sellRules.json"),
+      sellRules
+    );
+
+    console.log("\n");
+
+    const server = http.createServer();
+    const io2 = socketIo(server);
+    server.listen(sockeIOConfig.copyTradeSetupScriptPort, () => {});
+
+    io2.on("connection", (socket) => {
+      // Listen for events from the CopyTrader Server
+      socket.on(
+        sockeIOConfig.events["COPY_TRADE_BUY_POSITIONS_FILLED"]["name"],
+        (message) => {
+          console.log("New copy trade portfolio created successfully!");
+          process.exit(0);
+        }
+      );
+    });
+
+    const socket = io("http://localhost:" + sockeIOConfig.copyTradeServerPort);
+    socket.on("connect", () => {});
+    socket.emit(
+      sockeIOConfig.events["COPY_TRADE_BUY_FILL_POSITIONS"]["name"],
+      JSON.stringify(newPortfolioEntry)
+    );
+
+    while (true) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  } else {
+    newPortfolioEntry["copyTradeStrategy"] = copyTradeStrategy;
+    newPortfolioEntry["createTimeUTC"] = new Date().toUTCString();
+
+    // Append the new entry to the JSON data
+    existingPortfolioData.push(newPortfolioEntry);
+
+    // Write the updated JSON data back to the file
+    writeJsonFile(portfolioConfigPath, existingPortfolioData);
+    console.log("\n");
+
+    console.log("New copy trade portfolio created successfully!");
   }
-
-  newPortfolioEntry["copyTradeStrategy"] = copyTradeStrategy;
-  newPortfolioEntry["createTimeUTC"] = new Date().toUTCString();
-
-  // Append the new entry to the JSON data
-  existingPortfolioData.push(newPortfolioEntry);
-
-  // Write the updated JSON data back to the file
-  writeJsonFile(portfolioConfigPath, existingPortfolioData);
-  console.log("\n");
-  console.log("New copy trade portfolio created successfully!");
 }
 
 // Run the setup function

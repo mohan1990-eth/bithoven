@@ -1,24 +1,24 @@
 /**
  * @file txGofer.js
- * @description This module provides the TxGofer class, which manages transaction orders for a fleet of addresses. 
+ * @description This module provides the TxGofer class, which manages transaction orders for a fleet of addresses.
  * It includes methods for proposing orders, recording pending orders, marking orders as mined, and checking for completed orders.
  */
-const fs = require('fs-extra');
-const path = require('path');
-const KeyFleet = require('./keyFleet');
-const Logger = require('../common/logger');
-const { maxPendingInSeconds } = require('../config/chainConfig');
-const { lowBalCacheTTLMinutes } = require('../config/jobsConfig');
+const fs = require("fs-extra");
+const path = require("path");
+const KeyFleet = require("./keyFleet");
+const Logger = require("../common/logger");
+const { maxPendingInSeconds } = require("../config/chainConfig");
+const { lowBalCacheTTLMinutes } = require("../config/jobsConfig");
 
 class TxGofer {
-  static PENDING_ORDER_FILE = 'pendingOrder.json';
-  static ROLE_PRODUCER = 'PRODUCER';
-  static ROLE_CONSUMER = 'CONSUMER';
-  static TRANSACTION_MINED_MARK = '0700';
+  static PENDING_ORDER_FILE = "pendingOrder.json";
+  static ROLE_PRODUCER = "PRODUCER";
+  static ROLE_CONSUMER = "CONSUMER";
+  static TRANSACTION_MINED_MARK = "0700";
 
   constructor(provider, role) {
     if (![TxGofer.ROLE_PRODUCER, TxGofer.ROLE_CONSUMER].includes(role)) {
-      throw new Error('Invalid role. Must be PRODUCER or CONSUMER.');
+      throw new Error("Invalid role. Must be PRODUCER or CONSUMER.");
     }
 
     this.provider = provider;
@@ -30,28 +30,34 @@ class TxGofer {
     this.lowBalanceCache = {};
 
     if (this.fleetAddresses.length === 0) {
-      throw new Error('No fleet addresses found.');
+      throw new Error("No fleet addresses found.");
     }
 
-    this.lastChosenFleetAddrIndex = 0;
+    this.lastChosenFleetAddrIndex = {};
   }
   /**
    * Raises an alert for a specified gamer address and order type.
-   * 
+   *
    * @param {string} gamerAddress - The gamer address to raise an alert for.
    * @param {string} orderType - The type of order (BUY/SELL).
    */
   async raiseAlert(gamerAddress, orderType) {
-    const alertDir = path.join(__dirname, `../data/orders/proposedOrders/${orderType.toLowerCase()}Alerts`);
+    const alertDir = path.join(
+      __dirname,
+      `../data/orders/proposedOrders/${orderType.toLowerCase()}Alerts`
+    );
     await fs.ensureDir(alertDir);
 
     const timestamp = new Date().toISOString();
-    const alertFilePath = path.join(alertDir, `alert_${gamerAddress}_${timestamp}`);
+    const alertFilePath = path.join(
+      alertDir,
+      `alert_${gamerAddress}_${timestamp}`
+    );
     await fs.ensureFile(alertFilePath);
   }
   /**
    * Proposes an order for a specified gamer address.
-   * 
+   *
    * @param {string} gamerAddress - The gamer address to propose an order for.
    * @param {string} orderType - The type of order (BUY/SELL).
    * @param {number} quantity - The quantity of the order.
@@ -59,44 +65,72 @@ class TxGofer {
    * @param {string} invokedBy - The entity that invoked the order.
    * @param {string} [holderAddress=null] - The holder address associated with the order (optional).
    */
-  async proposeOrder(gamerAddress, orderType, quantity, ruleId, invokedBy, holderAddress = null) {
+  async proposeOrder(
+    gamerAddress,
+    orderType,
+    quantity,
+    ruleId,
+    invokedBy,
+    holderAddress = null,
+    portfolioName = "default"
+  ) {
     if (this.role !== TxGofer.ROLE_PRODUCER) {
-      throw new Error('Invalid role. Only PRODUCER can propose orders.');
+      throw new Error("Invalid role. Only PRODUCER can propose orders.");
     }
 
-    const orderDir = path.join(__dirname, `../data/orders/proposedOrders/${orderType.toLowerCase()}`, gamerAddress);
-    const alertDir = path.join(__dirname, `../data/orders/proposedOrders/${orderType.toLowerCase()}Alerts`);
+    const orderDir = path.join(
+      __dirname,
+      `../data/orders/proposedOrders/${orderType.toLowerCase()}`,
+      gamerAddress
+    );
+    const alertDir = path.join(
+      __dirname,
+      `../data/orders/proposedOrders/${orderType.toLowerCase()}Alerts`
+    );
 
     await fs.ensureDir(orderDir);
     await fs.ensureDir(alertDir);
 
     const timestamp = new Date().toISOString();
     const orderFilePath = path.join(orderDir, `${timestamp}.json`);
-    const alertFilePath = path.join(alertDir, `alert_${gamerAddress}_${timestamp}`);
+    const alertFilePath = path.join(
+      alertDir,
+      `alert_${gamerAddress}_${timestamp}`
+    );
 
-    const orderData = { ruleId, invokedBy, quantity };
+    const orderData = { ruleId, invokedBy, portfolioName, quantity };
     if (holderAddress) {
       orderData.holderAddress = holderAddress;
     }
 
     await fs.writeJson(orderFilePath, orderData, { spaces: 2 });
+
     await fs.ensureFile(alertFilePath);
   }
   /**
    * Records a pending order for a specified gamer address.
-   * 
+   *
    * @param {string} gamerAddress - The gamer address to record a pending order for.
    * @param {string} orderType - The type of order (BUY/SELL).
    * @param {number} numberOfBits - The number of bits in the order.
    * @param {string} fleetAddress - The fleet address associated with the order.
    * @param {string} txHash - The transaction hash of the order.
    */
-  async recordPendingOrder(gamerAddress, orderType, numberOfBits, fleetAddress, txHash) {
+  async recordPendingOrder(
+    gamerAddress,
+    orderType,
+    numberOfBits,
+    fleetAddress,
+    txHash
+  ) {
     if (this.role !== TxGofer.ROLE_CONSUMER) {
-      throw new Error('Invalid role. Only CONSUMER can record pending orders.');
+      throw new Error("Invalid role. Only CONSUMER can record pending orders.");
     }
 
-    const nonce = await this.provider.getTransactionCount(fleetAddress, 'latest');
+    const nonce = await this.provider.getTransactionCount(
+      fleetAddress,
+      "latest"
+    );
     const timestamp = new Date().toISOString();
     const pendingOrder = {
       gamerAddress,
@@ -107,7 +141,7 @@ class TxGofer {
       timestamp,
     };
 
-    const orderDir = path.join(__dirname, '../data/orders', fleetAddress);
+    const orderDir = path.join(__dirname, "../data/orders", fleetAddress);
     await fs.ensureDir(orderDir);
 
     const orderFilePath = path.join(orderDir, TxGofer.PENDING_ORDER_FILE);
@@ -120,10 +154,15 @@ class TxGofer {
    */
   async markMinedOrder(fleetAddress, txHash) {
     if (this.role !== TxGofer.ROLE_PRODUCER) {
-      throw new Error('Invalid role. Only PRODUCER can mark mined orders.');
+      throw new Error("Invalid role. Only PRODUCER can mark mined orders.");
     }
 
-    const orderFilePath = path.join(__dirname, '../data/orders', fleetAddress, TxGofer.PENDING_ORDER_FILE);
+    const orderFilePath = path.join(
+      __dirname,
+      "../data/orders",
+      fleetAddress,
+      TxGofer.PENDING_ORDER_FILE
+    );
 
     if (!(await fs.pathExists(orderFilePath))) {
       return;
@@ -140,16 +179,24 @@ class TxGofer {
    * @param {string} fleetAddress - The fleet address.
    * @returns {Promise<boolean>} True if the order is complete or does not exist, otherwise false.
    */
-  static async isPendingOrderComplete(fleetAddress){
-    const orderFilePath = path.join(__dirname, '../data/orders', fleetAddress, TxGofer.PENDING_ORDER_FILE);
+  static async isPendingOrderComplete(fleetAddress) {
+    const orderFilePath = path.join(
+      __dirname,
+      "../data/orders",
+      fleetAddress,
+      TxGofer.PENDING_ORDER_FILE
+    );
 
     if (!(await fs.pathExists(orderFilePath))) {
       return true;
     }
 
     const stats = await fs.stat(orderFilePath);
-    if ((stats.mode & parseInt(TxGofer.TRANSACTION_MINED_MARK, 8)) === parseInt(TxGofer.TRANSACTION_MINED_MARK, 8)) {
-     return true;
+    if (
+      (stats.mode & parseInt(TxGofer.TRANSACTION_MINED_MARK, 8)) ===
+      parseInt(TxGofer.TRANSACTION_MINED_MARK, 8)
+    ) {
+      return true;
     }
 
     return false;
@@ -160,7 +207,12 @@ class TxGofer {
    * @returns {Promise<Object|null>} The pending order if it exists and is still valid, otherwise null.
    */
   async refreshPendingOrder(fleetAddress) {
-    const orderFilePath = path.join(__dirname, '../data/orders', fleetAddress, TxGofer.PENDING_ORDER_FILE);
+    const orderFilePath = path.join(
+      __dirname,
+      "../data/orders",
+      fleetAddress,
+      TxGofer.PENDING_ORDER_FILE
+    );
 
     if (!(await fs.pathExists(orderFilePath))) {
       return null;
@@ -168,8 +220,16 @@ class TxGofer {
 
     const pendingOrder = await fs.readJson(orderFilePath);
     const stats = await fs.stat(orderFilePath);
-    if ((stats.mode & parseInt(TxGofer.TRANSACTION_MINED_MARK, 8)) === parseInt(TxGofer.TRANSACTION_MINED_MARK, 8)) {
-      this.logger.logInfo({ msg: `Pending order mined, confirmed and txHash removed: ${pendingOrder.txHash}` }, 'ORDER_MINED_CONFIRMED');
+    if (
+      (stats.mode & parseInt(TxGofer.TRANSACTION_MINED_MARK, 8)) ===
+      parseInt(TxGofer.TRANSACTION_MINED_MARK, 8)
+    ) {
+      this.logger.logInfo(
+        {
+          msg: `Pending order mined, confirmed and txHash removed: ${pendingOrder.txHash}`,
+        },
+        "ORDER_MINED_CONFIRMED"
+      );
       await fs.remove(orderFilePath);
       return null;
     }
@@ -179,11 +239,23 @@ class TxGofer {
 
     if (now - orderTimestamp > maxPendingInSeconds * 1000) {
       await fs.remove(orderFilePath);
-      this.logger.logWarning({ msg: `Pending order expired and removed ${JSON.stringify(pendingOrder, null, 2)}` }, 'ORDER_EXPIRED');
+      this.logger.logWarning(
+        {
+          msg: `Pending order expired and removed ${JSON.stringify(
+            pendingOrder,
+            null,
+            2
+          )}`,
+        },
+        "ORDER_EXPIRED"
+      );
       return null;
     }
 
-    const currentNonce = await this.provider.getTransactionCount(fleetAddress, 'latest');
+    const currentNonce = await this.provider.getTransactionCount(
+      fleetAddress,
+      "latest"
+    );
     if (currentNonce > pendingOrder.nonce) {
       await fs.remove(orderFilePath);
       return null;
@@ -204,7 +276,12 @@ class TxGofer {
     }
 
     if (pendingOrder.txHash === txHash) {
-      const orderFilePath = path.join(__dirname, '../data/orders', fleetAddress, TxGofer.PENDING_ORDER_FILE);
+      const orderFilePath = path.join(
+        __dirname,
+        "../data/orders",
+        fleetAddress,
+        TxGofer.PENDING_ORDER_FILE
+      );
       await fs.remove(orderFilePath);
     }
   }
@@ -212,33 +289,53 @@ class TxGofer {
    * Selects the next free key slot from the fleet addresses.
    * @returns {Promise<number>} The index of the next free key slot, or -1 if no free slot is found.
    */
-  async selectNextFreeKeySlot() {
-    const startIndex = this.lastChosenFleetAddrIndex;
+  async selectNextFreeKeySlot(portfolioName = "default") {
+    const startIndex =
+      this.lastChosenFleetAddrIndex &&
+      this.lastChosenFleetAddrIndex[portfolioName]
+        ? this.lastChosenFleetAddrIndex[portfolioName]
+        : 0;
     let index = startIndex;
     const now = Date.now();
+
+    // The default and other portfolio has different fleet key address associated with them
+    this.fleetAddresses = this.keyFleet.getAllAddresses(portfolioName);
+
+    if (this.fleetAddresses.length === 0) {
+      throw new Error("No fleet addresses found.");
+    }
 
     for (let i = 0; i < this.fleetAddresses.length; i++) {
       index = (index + 1) % this.fleetAddresses.length;
       const currentAddress = this.fleetAddresses[index];
-      const orderFilePath = path.join(__dirname, '../data/orders', currentAddress, TxGofer.PENDING_ORDER_FILE);
+      const orderFilePath = path.join(
+        __dirname,
+        "../data/orders",
+        currentAddress,
+        TxGofer.PENDING_ORDER_FILE
+      );
 
       if (!(await fs.pathExists(orderFilePath))) {
         if (this.isInLowBalCache(currentAddress, now)) {
           continue;
         }
 
-        const hasEnoughERC20 = await this.keyFleet.meetMinimumERC20Balance(currentAddress);
-        const hasEnoughGas = await this.keyFleet.meetMinimumGasFeesBalance(currentAddress);
+        const hasEnoughERC20 = await this.keyFleet.meetMinimumERC20Balance(
+          currentAddress
+        );
+        const hasEnoughGas = await this.keyFleet.meetMinimumGasFeesBalance(
+          currentAddress
+        );
 
         if (hasEnoughERC20 && hasEnoughGas) {
-          this.lastChosenFleetAddrIndex = index;
+          this.lastChosenFleetAddrIndex[portfolioName] = index;
           return index;
         } else {
           this.cacheLowBalAddress(currentAddress, now);
           let warningMsg = `Fleet Address ${currentAddress} does not meet minimum balance requirements, cannot use it:`;
-          if (!hasEnoughERC20) warningMsg += ' insufficient ERC20 balance;';
-          if (!hasEnoughGas) warningMsg += ' insufficient gas balance;';
-          this.logger.logWarning({ msg: warningMsg }, 'INSUFFICIENT_BALANCE');
+          if (!hasEnoughERC20) warningMsg += " insufficient ERC20 balance;";
+          if (!hasEnoughGas) warningMsg += " insufficient gas balance;";
+          this.logger.logWarning({ msg: warningMsg }, "INSUFFICIENT_BALANCE");
         }
       }
     }
@@ -255,18 +352,22 @@ class TxGofer {
           continue;
         }
 
-        const hasEnoughERC20 = await this.keyFleet.meetMinimumERC20Balance(currentAddress);
-        const hasEnoughGas = await this.keyFleet.meetMinimumGasFeesBalance(currentAddress);
+        const hasEnoughERC20 = await this.keyFleet.meetMinimumERC20Balance(
+          currentAddress
+        );
+        const hasEnoughGas = await this.keyFleet.meetMinimumGasFeesBalance(
+          currentAddress
+        );
 
         if (hasEnoughERC20 && hasEnoughGas) {
-          this.lastChosenFleetAddrIndex = index;
+          this.lastChosenFleetAddrIndex[portfolioName] = index;
           return index;
         } else {
           this.cacheLowBalAddress(currentAddress, now);
           let warningMsg = `Fleet Address ${currentAddress} does not meet minimum balance requirements, cannot use it:`;
-          if (!hasEnoughERC20) warningMsg += ' insufficient ERC20 balance;';
-          if (!hasEnoughGas) warningMsg += ' insufficient gas balance;';
-          this.logger.logWarning({ msg: warningMsg }, 'INSUFFICIENT_BALANCE');
+          if (!hasEnoughERC20) warningMsg += " insufficient ERC20 balance;";
+          if (!hasEnoughGas) warningMsg += " insufficient gas balance;";
+          this.logger.logWarning({ msg: warningMsg }, "INSUFFICIENT_BALANCE");
         }
       }
     }
@@ -284,7 +385,9 @@ class TxGofer {
       return false;
     }
 
-    return now - this.lowBalanceCache[address] < lowBalCacheTTLMinutes * 60 * 1000;
+    return (
+      now - this.lowBalanceCache[address] < lowBalCacheTTLMinutes * 60 * 1000
+    );
   }
   /**
    * Caches the address with the current timestamp in the low balance cache.

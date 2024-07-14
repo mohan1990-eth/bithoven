@@ -1,7 +1,7 @@
-
 {
   "functionDelay": 3000,
   "fullSweepInterval": 20000,
+  "copyTraderInterval": 10000,
   "tradeGenerationIntervalSeconds": 10,
   "staleSellOrderMinutes": 10,
   "tradeGoferIntervalSeconds": 7,
