@@ -84,6 +84,7 @@ async function buyUpToImpl(ctx, quantity) {
  */
 
 async function copyBuyImpl(ctx, quantity, isInitialFill) {
+  isInitialFill = isInitialFill.toString().toLowerCase() === "true";
   quantity = parseInt(quantity, 10); // ENsure quantity is an integer
 
   if (quantity <= 0) {
@@ -129,8 +130,11 @@ async function copyBuyImpl(ctx, quantity, isInitialFill) {
         pandLResults,
         ctx.portfolio["initialPortfolioValuationEthers"],
         targetPortfolioValuation,
+        ctx.portfolio["stopLossPercent"],
         quantity
       );
+
+    console.log("adjustedQuantity: " + adjustedQuantity);
   }
 
   if (adjustedQuantity > 0) {

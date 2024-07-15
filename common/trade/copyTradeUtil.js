@@ -84,6 +84,7 @@ class CopyTradeUtil {
     pandLResults,
     initialPortfolioValuation,
     targetPortfolioValuation,
+    stopLossPercentage,
     quantity
   ) {
     const currentPortfolioValuation =
@@ -94,36 +95,25 @@ class CopyTradeUtil {
           initialPortfolioValuation
         : initialPortfolioValuation;
 
-    if (currentPortfolioValuation <= targetPortfolioValuation) {
-      // less than because we are looking for a stop loss
+    let currentPandLPercentage =
+      pandLResults &&
+      pandLResults["total"] &&
+      pandLResults["total"]["percentProfit"]
+        ? parseFloat(pandLResults["total"]["percentProfit"])
+        : 0;
+
+    if (stopLossPercentage > 0) {
+      // Stop loss percentage needs to be expressed in negative. If stop loss is positive, ensure it is negative.
+      stopLossPercentage = stopLossPercentage * -1;
+    }
+
+    console.log("currentPandLPercentage", currentPandLPercentage);
+    console.log("stopLossPercentage", stopLossPercentage);
+
+    if (stopLossPercentage >= currentPandLPercentage) {
+      // greater than because we are looking for a stop loss
       return 0;
     } else {
-      const availablePortfolioValuation =
-        targetPortfolioValuation - currentPortfolioValuation;
-      const provider = new ethers.providers.JsonRpcProvider(providerURL);
-
-      // Start with the quantity and keep reducing it until the buy price is less than or equal to the available portfolio valuation
-      while (quantity > 0) {
-        const buyPriceInWei = await getBuyPrice(
-          gamer,
-          quantity,
-          provider,
-          contractAddress,
-          "latest",
-          true
-        );
-        const buyPriceInEthers = await convertBitsPriceWeiToEther(
-          provider,
-          buyPriceInWei
-        );
-
-        if (buyPriceInEthers <= availablePortfolioValuation) {
-          return quantity;
-        } else {
-          quantity--;
-        }
-      }
-
       return quantity;
     }
   }
