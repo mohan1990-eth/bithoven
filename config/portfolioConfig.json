@@ -1,30 +1,6 @@
 [
   {
     "portfolioName": "default",
-    "keyFleet": [
-      "0xE65518d3be7897C8FFEB2A082e21336878d7B5D4",
-      "0x80aF10E7883C8018082a1F9DC202BFA39a326f39",
-      "0xBFe06175F5AEF00ABBAe899868cbEb35a7A5623a"
-    ]
-  },
-  {
-    "portfolioName": "test_portfolio",
-    "keyFleet": [
-      "0xE2AD549691B31aafb43A136Bb2A18D0A573ED68E",
-      "0x32F4b99A2aE2Cd5bA1D1694836386CB1ADd35f78"
-    ],
-    "copiedTraderAddress": "0xE65518d3be7897C8FFEB2A082e21336878d7B5D4",
-    "newPortfolioInitialPositions": [
-      [
-        "0x20113bABDab73111A2027c03F38F4384a2Cfbd8f",
-        1,
-        68.936365616
-      ]
-    ],
-    "initialPortfolioValuationWei": 68936365616000000000,
-    "initialPortfolioValuationEthers": 68.936365616,
-    "stopLossPercent": 10,
-    "copyTradeStrategy": "min",
-    "createTimeUTC": "Sun, 14 Jul 2024 03:58:34 GMT"
+    "keyFleet": ["0x.....", "0x.....", "0x....."]
   }
 ]

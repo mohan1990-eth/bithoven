@@ -1,22 +1,22 @@
 /**
  * @file jsonStore.js
- * @description This module defines the JSONStore class for managing JSON data files related to holders, gamers, and transactions. 
- * It includes methods for initializing directories, adding and updating gamer batches, pruning transaction files, 
+ * @description This module defines the JSONStore class for managing JSON data files related to holders, gamers, and transactions.
+ * It includes methods for initializing directories, adding and updating gamer batches, pruning transaction files,
  * and retrieving batch and transaction data.
  */
-const fs = require('fs-extra');
-const path = require('path');
-const BigNumber = require('bignumber.js');
-const { ethers } = require('ethers');
-const { JSONStoreTxHistoryError } = require('./storeErrors');
-const config = require('../config/chainConfig');
+const fs = require("fs-extra");
+const path = require("path");
+const BigNumber = require("bignumber.js");
+const { ethers } = require("ethers");
+const { JSONStoreTxHistoryError } = require("./storeErrors");
+const config = require("../config/chainConfig");
 
-const dataDir = path.join(__dirname, '..', 'data');
-const holdersDir = path.join(dataDir, 'holders');
-const archiveDir = path.join(dataDir, 'archive');
-const transactionsDir = path.join(dataDir, 'transactions');
-const ordersDir = path.join(dataDir, 'orders');
-const proposedOrdersDir = path.join(ordersDir, 'proposedOrders');
+const dataDir = path.join(__dirname, "..", "data");
+const holdersDir = path.join(dataDir, "holders");
+const archiveDir = path.join(dataDir, "archive");
+const transactionsDir = path.join(dataDir, "transactions");
+const ordersDir = path.join(dataDir, "orders");
+const proposedOrdersDir = path.join(ordersDir, "proposedOrders");
 
 const provider = new ethers.providers.JsonRpcProvider(config.providerURL);
 
@@ -24,7 +24,7 @@ class JSONStore {
   constructor() {
     this.init();
   }
-    /**
+  /**
    * Initializes the JSONStore by ensuring all required directories exist.
    * @async
    */
@@ -54,7 +54,7 @@ class JSONStore {
     try {
       const stats = await fs.stat(transactionFilePath);
 
-      if (stats.isFile() && transactionFilePath.endsWith('.json')) {
+      if (stats.isFile() && transactionFilePath.endsWith(".json")) {
         const transaction = await fs.readJson(transactionFilePath);
         const txDate = new Date(transaction.last_tx_date).getTime();
 
@@ -64,8 +64,11 @@ class JSONStore {
         }
       }
     } catch (error) {
-      console.error('Failed to prune transaction file:', error);
-      throw new JSONStoreTxHistoryError('Failed to prune transaction file.', 'PRUNE_TX_FAILED');
+      console.error("Failed to prune transaction file:", error);
+      throw new JSONStoreTxHistoryError(
+        "Failed to prune transaction file.",
+        "PRUNE_TX_FAILED"
+      );
     }
   }
   /**
@@ -95,28 +98,43 @@ class JSONStore {
   async addGamerBatch(holderAddress, gamerAddress, batch) {
     const gamerPath = this.getGamerPath(holderAddress, gamerAddress);
     await fs.ensureDir(gamerPath);
-    
+
     // Get all batch files and determine the next batch number
     const files = await fs.readdir(gamerPath);
     const batchNumbers = files
-      .map(file => {
+      .map((file) => {
         const match = file.match(/^batch_(\d+)\.json$/);
         return match ? parseInt(match[1], 10) : 0;
       })
-      .filter(num => num > 0);
+      .filter((num) => num > 0);
 
-    const batchNumber = batchNumbers.length > 0 ? Math.max(...batchNumbers) + 1 : 1;
-    const batchFilePath = this.getBatchFilePath(holderAddress, gamerAddress, batchNumber);
-    const tempFilePath = batchFilePath + '.tmp';
+    const batchNumber =
+      batchNumbers.length > 0 ? Math.max(...batchNumbers) + 1 : 1;
+    const batchFilePath = this.getBatchFilePath(
+      holderAddress,
+      gamerAddress,
+      batchNumber
+    );
+    const tempFilePath = batchFilePath + ".tmp";
 
     // Validate the new batch against the last batch
     if (batchNumbers.length > 0) {
       const lastBatchNumber = Math.max(...batchNumbers);
-      const lastBatchFilePath = this.getBatchFilePath(holderAddress, gamerAddress, lastBatchNumber);
+      const lastBatchFilePath = this.getBatchFilePath(
+        holderAddress,
+        gamerAddress,
+        lastBatchNumber
+      );
       const lastBatch = await fs.readJson(lastBatchFilePath);
 
-      if (batch.BlockNumOnWhichBitsWereBought < lastBatch.BlockNumOnWhichBitsWereBought) {
-        throw new JSONStoreTxHistoryError('BlockNumOnWhichBitsWereBought in the new batch must be greater than or equal to that in the previous batch.', 'INVALID_BLOCK_NUMBER');
+      if (
+        batch.BlockNumOnWhichBitsWereBought <
+        lastBatch.BlockNumOnWhichBitsWereBought
+      ) {
+        throw new JSONStoreTxHistoryError(
+          "BlockNumOnWhichBitsWereBought in the new batch must be greater than or equal to that in the previous batch.",
+          "INVALID_BLOCK_NUMBER"
+        );
       }
     }
 
@@ -126,18 +144,34 @@ class JSONStore {
 
       // Atomically move the temporary file to the target location
       await fs.move(tempFilePath, batchFilePath, { overwrite: true });
-      console.log(`Batch ${batchNumber} added for gamer ${gamerAddress} under holder ${holderAddress}.`);
+      console.log(
+        `Batch ${batchNumber} added for gamer ${gamerAddress} under holder ${holderAddress}.`
+      );
 
       // Update the transaction file
-      const blockTimestamp = await this.getBlockTimestamp(batch.BlockNumOnWhichBitsWereBought);
-      await this.updateTransactionFile(gamerAddress, holderAddress, blockTimestamp, batch.BlockNumOnWhichBitsWereBought, true);
+      const blockTimestamp = await this.getBlockTimestamp(
+        batch.BlockNumOnWhichBitsWereBought
+      );
+      await this.updateTransactionFile(
+        gamerAddress,
+        holderAddress,
+        blockTimestamp,
+        batch.BlockNumOnWhichBitsWereBought,
+        true
+      );
     } catch (error) {
       // Clean up the temporary file in case of error
       if (await fs.pathExists(tempFilePath)) {
         await fs.remove(tempFilePath);
       }
-      console.error(`Failed to add gamer batch for ${gamerAddress} under holder ${holderAddress}:`, error);
-      throw new JSONStoreTxHistoryError('Failed to add gamer batch.', 'ADD_BATCH_FAILED');
+      console.error(
+        `Failed to add gamer batch for ${gamerAddress} under holder ${holderAddress}:`,
+        error
+      );
+      throw new JSONStoreTxHistoryError(
+        "Failed to add gamer batch.",
+        "ADD_BATCH_FAILED"
+      );
     }
   }
   /**
@@ -151,24 +185,52 @@ class JSONStore {
    * @param {string} [sellPrice="0"] - The sell price.
    * @throws {JSONStoreTxHistoryError} If the batch cannot be updated.
    */
-  async updateGamerBatch(holderAddress, gamerAddress, batchNumber, bitsToDeduct, blockNumberOnWhichBitsWereSold, sellPrice = "0") {
-    const batchFilePath = this.getBatchFilePath(holderAddress, gamerAddress, batchNumber);
-    if (!await fs.pathExists(batchFilePath)) {
-      throw new JSONStoreTxHistoryError(`Batch file ${batchFilePath} does not exist.`, 'BATCH_NOT_FOUND');
+  async updateGamerBatch(
+    holderAddress,
+    gamerAddress,
+    batchNumber,
+    bitsToDeduct,
+    blockNumberOnWhichBitsWereSold,
+    sellPrice = "0"
+  ) {
+    const batchFilePath = this.getBatchFilePath(
+      holderAddress,
+      gamerAddress,
+      batchNumber
+    );
+    if (!(await fs.pathExists(batchFilePath))) {
+      throw new JSONStoreTxHistoryError(
+        `Batch file ${batchFilePath} does not exist.`,
+        "BATCH_NOT_FOUND"
+      );
     }
 
-    const tempFilePath = batchFilePath + '.tmp';
+    const tempFilePath = batchFilePath + ".tmp";
 
     try {
       const batch = await fs.readJson(batchFilePath);
       if (batch.remainingBatchAmount < bitsToDeduct) {
-        throw new JSONStoreTxHistoryError('Not enough bits to deduct.', 'INSUFFICIENT_BITS');
+        throw new JSONStoreTxHistoryError(
+          "Not enough bits to deduct.",
+          "INSUFFICIENT_BITS"
+        );
       }
-      if (batch.BlockNumOnWhichBitsWereBought > blockNumberOnWhichBitsWereSold) {
-        throw new JSONStoreTxHistoryError('BlockNumberOnWhichBitsWereSold must be greater than BlockNumberOnWhichBitsWereBought.', 'INVALID_BLOCK_NUMBER');
+      if (
+        batch.BlockNumOnWhichBitsWereBought > blockNumberOnWhichBitsWereSold
+      ) {
+        throw new JSONStoreTxHistoryError(
+          "BlockNumberOnWhichBitsWereSold must be greater than BlockNumberOnWhichBitsWereBought.",
+          "INVALID_BLOCK_NUMBER"
+        );
       }
-      if (batch.BlockNumberOnWhichBitsWereSold && batch.BlockNumberOnWhichBitsWereSold > blockNumberOnWhichBitsWereSold) {
-        throw new JSONStoreTxHistoryError('BlockNumberOnWhichBitsWereSold must be greater than its current value.', 'BLOCK_NUMBER_NOT_INCREMENTED');
+      if (
+        batch.BlockNumberOnWhichBitsWereSold &&
+        batch.BlockNumberOnWhichBitsWereSold > blockNumberOnWhichBitsWereSold
+      ) {
+        throw new JSONStoreTxHistoryError(
+          "BlockNumberOnWhichBitsWereSold must be greater than its current value.",
+          "BLOCK_NUMBER_NOT_INCREMENTED"
+        );
       }
 
       const currentSellPrice = new BigNumber(batch.sellPrice || "0");
@@ -185,23 +247,42 @@ class JSONStore {
         const archivePath = this.getArchivePath(holderAddress, gamerAddress);
         await fs.ensureDir(archivePath);
         await fs.move(tempFilePath, batchFilePath, { overwrite: true });
-        await fs.move(batchFilePath, path.join(archivePath, `batch_${batchNumber}.json`), { overwrite: true } );
-        console.log(`Batch ${batchNumber} archived for gamer ${gamerAddress} under holder ${holderAddress}.`);
+        await fs.move(
+          batchFilePath,
+          path.join(archivePath, `batch_${batchNumber}.json`),
+          { overwrite: true }
+        );
+        console.log(
+          `Batch ${batchNumber} archived for gamer ${gamerAddress} under holder ${holderAddress}.`
+        );
       } else {
         // Atomically move the temporary file to replace the original file
         await fs.move(tempFilePath, batchFilePath, { overwrite: true });
-        console.log(`Batch ${batchNumber} updated for gamer ${gamerAddress} under holder ${holderAddress}.`);
+        console.log(
+          `Batch ${batchNumber} updated for gamer ${gamerAddress} under holder ${holderAddress}.`
+        );
       }
 
       // Update the transaction file
-      const blockTimestamp = await this.getBlockTimestamp(blockNumberOnWhichBitsWereSold);
-      await this.updateTransactionFile(gamerAddress, holderAddress, blockTimestamp, blockNumberOnWhichBitsWereSold , false);
+      const blockTimestamp = await this.getBlockTimestamp(
+        blockNumberOnWhichBitsWereSold
+      );
+      await this.updateTransactionFile(
+        gamerAddress,
+        holderAddress,
+        blockTimestamp,
+        blockNumberOnWhichBitsWereSold,
+        false
+      );
     } catch (error) {
       // Clean up the temporary file in case of error
       if (await fs.pathExists(tempFilePath)) {
         await fs.remove(tempFilePath);
       }
-      console.error(`Failed to update gamer batch ${batchNumber} for ${gamerAddress} under holder ${holderAddress}:`, error);
+      console.error(
+        `Failed to update gamer batch ${batchNumber} for ${gamerAddress} under holder ${holderAddress}:`,
+        error
+      );
       throw error;
     }
   }
@@ -216,7 +297,6 @@ class JSONStore {
   async getLastTransaction(gamerAddress) {
     const transactionFilePath = this.getTransactionFilePath(gamerAddress);
     try {
-
       if (!(await fs.pathExists(transactionFilePath))) {
         return null;
       }
@@ -226,16 +306,22 @@ class JSONStore {
 
       return res;
     } catch (error) {
-      if (error.code === 'ENOENT') {
+      if (error.code === "ENOENT") {
         return null;
       } else {
-        console.error(`Failed to get last transaction for gamer ${gamerAddress}:`, error);
-        throw new JSONStoreTxHistoryError(`Failed to get last transaction for gamer ${gamerAddress}: ${error.message}`, 'GET_TX_FAILED');
+        console.error(
+          `Failed to get last transaction for gamer ${gamerAddress}:`,
+          error
+        );
+        throw new JSONStoreTxHistoryError(
+          `Failed to get last transaction for gamer ${gamerAddress}: ${error.message}`,
+          "GET_TX_FAILED"
+        );
       }
     }
   }
 
-   /**
+  /**
    * Gets the path for a holder's directory.
    * @param {string} holderAddress - The address of the holder.
    * @returns {string} - The path to the holder's directory.
@@ -262,7 +348,10 @@ class JSONStore {
    * @returns {string} - The path to the batch file.
    */
   getBatchFilePath(holderAddress, gamerAddress, batchNumber) {
-    return path.join(this.getGamerPath(holderAddress, gamerAddress), `batch_${batchNumber}.json`);
+    return path.join(
+      this.getGamerPath(holderAddress, gamerAddress),
+      `batch_${batchNumber}.json`
+    );
   }
   /**
    * Gets the path for the archive directory of a gamer.
@@ -291,21 +380,33 @@ class JSONStore {
    * @param {boolean} isBuy - Indicates if the transaction is a buy.
    * @throws {JSONStoreTxHistoryError} If the transaction file cannot be updated.
    */
-  async updateTransactionFile(gamerAddress, holderAddress, blockTimestamp, blockNumber, isBuy) {
+  async updateTransactionFile(
+    gamerAddress,
+    holderAddress,
+    blockTimestamp,
+    blockNumber,
+    isBuy
+  ) {
     const transactionFilePath = this.getTransactionFilePath(gamerAddress);
     const transaction = {
       last_tx_date: new Date(blockTimestamp * 1000).toISOString(),
       holder: holderAddress,
       is_buy: isBuy,
-      blockNumber: blockNumber
+      blockNumber: blockNumber,
     };
 
     try {
       await fs.writeJson(transactionFilePath, transaction, { spaces: 2 });
       console.log(`Transaction file updated for gamer ${gamerAddress}.`);
     } catch (error) {
-      console.error(`Failed to update transaction file for gamer ${gamerAddress}:`, error);
-      throw new JSONStoreTxHistoryError('Failed to update transaction file.', 'UPDATE_TX_FAILED');
+      console.error(
+        `Failed to update transaction file for gamer ${gamerAddress}:`,
+        error
+      );
+      throw new JSONStoreTxHistoryError(
+        "Failed to update transaction file.",
+        "UPDATE_TX_FAILED"
+      );
     }
   }
   /**
@@ -321,11 +422,17 @@ class JSONStore {
       if (block) {
         return block.timestamp;
       } else {
-        throw new JSONStoreTxHistoryError(`Block number ${blockNumber} not found.`, 'BLOCK_NOT_FOUND');
+        throw new JSONStoreTxHistoryError(
+          `Block number ${blockNumber} not found.`,
+          "BLOCK_NOT_FOUND"
+        );
       }
     } catch (error) {
       console.error(`Error fetching block number ${blockNumber}:`, error);
-      throw new JSONStoreTxHistoryError(`Failed to fetch block number ${blockNumber}: ${error.message}`, 'BLOCK_FETCH_FAILED');
+      throw new JSONStoreTxHistoryError(
+        `Failed to fetch block number ${blockNumber}: ${error.message}`,
+        "BLOCK_FETCH_FAILED"
+      );
     }
   }
   /**
@@ -337,14 +444,16 @@ class JSONStore {
    */
   async getBatchFilesInDescendingOrder(holderAddress, gamerAddress) {
     const gamerPath = this.getGamerPath(holderAddress, gamerAddress);
-    const batchFiles = (await fs.readdir(gamerPath)).filter(file => file.startsWith('batch_'));
+    const batchFiles = (await fs.readdir(gamerPath)).filter((file) =>
+      file.startsWith("batch_")
+    );
     return batchFiles.sort((a, b) => {
       const batchNumberA = parseInt(a.match(/^batch_(\d+)\.json$/)[1], 10);
       const batchNumberB = parseInt(b.match(/^batch_(\d+)\.json$/)[1], 10);
       return batchNumberB - batchNumberA;
     });
   }
-    /**
+  /**
    * Retrieves the batch files in ascending order of batch numbers.
    * @async
    * @param {string} holderAddress - The address of the holder.
@@ -353,7 +462,9 @@ class JSONStore {
    */
   async getBatchFilesInAscendingOrder(holderAddress, gamerAddress) {
     const gamerPath = this.getGamerPath(holderAddress, gamerAddress);
-    const batchFiles = (await fs.readdir(gamerPath)).filter(file => file.startsWith('batch_'));
+    const batchFiles = (await fs.readdir(gamerPath)).filter((file) =>
+      file.startsWith("batch_")
+    );
     return batchFiles.sort((a, b) => {
       const batchNumberA = parseInt(a.match(/^batch_(\d+)\.json$/)[1], 10);
       const batchNumberB = parseInt(b.match(/^batch_(\d+)\.json$/)[1], 10);
@@ -369,7 +480,9 @@ class JSONStore {
    */
   async getBatchFiles(holderAddress, gamerAddress) {
     const gamerPath = this.getGamerPath(holderAddress, gamerAddress);
-    const batchFiles = (await fs.readdir(gamerPath)).filter(file => file.startsWith('batch_'));
+    const batchFiles = (await fs.readdir(gamerPath)).filter((file) =>
+      file.startsWith("batch_")
+    );
     return batchFiles;
   }
   /**
@@ -382,12 +495,19 @@ class JSONStore {
    * @throws {JSONStoreTxHistoryError} If the batch file cannot be read.
    */
   async getBatchFile(holderAddress, gamerAddress, batchNumber) {
-    const batchFilePath = this.getBatchFilePath(holderAddress, gamerAddress, batchNumber);
+    const batchFilePath = this.getBatchFilePath(
+      holderAddress,
+      gamerAddress,
+      batchNumber
+    );
     try {
       return await fs.readJson(batchFilePath);
     } catch (error) {
       console.error(`Failed to read batch file ${batchFilePath}:`, error);
-      throw new JSONStoreTxHistoryError(`Failed to read batch file ${batchFilePath}: ${error.message}`, 'READ_BATCH_FAILED');
+      throw new JSONStoreTxHistoryError(
+        `Failed to read batch file ${batchFilePath}: ${error.message}`,
+        "READ_BATCH_FAILED"
+      );
     }
   }
   /**
@@ -398,40 +518,49 @@ class JSONStore {
    */
   async getFullStore(holderSet = null) {
     const store = {};
-  
+
     const traverseDirectory = async (dirPath, filter = null) => {
+      // check if the directory exists
+      if (!(await fs.pathExists(dirPath))) {
+        return {};
+      }
+
       const contents = await fs.readdir(dirPath);
       const result = {};
-  
+
       for (const item of contents) {
         const itemPath = path.join(dirPath, item);
         const stats = await fs.stat(itemPath);
-  
+
         if (stats.isDirectory()) {
           if (!filter || filter.includes(item)) {
             result[item] = await traverseDirectory(itemPath);
           }
-        } else if (stats.isFile() && item.endsWith('.json')) {
+        } else if (stats.isFile() && item.endsWith(".json")) {
           result[item] = await fs.readJson(itemPath);
         }
       }
-  
+
       return result;
     };
-  
+
     if (holderSet) {
       store.holders = {};
       store.archive = {};
-  
+
       for (const holder of holderSet) {
-        store.holders[holder] = await traverseDirectory(path.join(holdersDir, holder));
-        store.archive[holder] = await traverseDirectory(path.join(archiveDir, holder));
+        store.holders[holder] = await traverseDirectory(
+          path.join(holdersDir, holder)
+        );
+        store.archive[holder] = await traverseDirectory(
+          path.join(archiveDir, holder)
+        );
       }
     } else {
       store.holders = await traverseDirectory(holdersDir);
       store.archive = await traverseDirectory(archiveDir);
     }
-  
+
     return store;
   }
   /**
@@ -446,7 +575,10 @@ class JSONStore {
       if (batch.BlockNumOnWhichBitsWereBought > maxBlockNum) {
         maxBlockNum = batch.BlockNumOnWhichBitsWereBought;
       }
-      if (batch.BlockNumberOnWhichBitsWereSold && batch.BlockNumberOnWhichBitsWereSold > maxBlockNum) {
+      if (
+        batch.BlockNumberOnWhichBitsWereSold &&
+        batch.BlockNumberOnWhichBitsWereSold > maxBlockNum
+      ) {
         maxBlockNum = batch.BlockNumberOnWhichBitsWereSold;
       }
     };
@@ -460,7 +592,7 @@ class JSONStore {
 
         if (stats.isDirectory()) {
           await traverseAndFindMaxBlockNum(itemPath);
-        } else if (stats.isFile() && item.endsWith('.json')) {
+        } else if (stats.isFile() && item.endsWith(".json")) {
           const batch = await fs.readJson(itemPath);
           updateMaxBlockNum(batch);
         }

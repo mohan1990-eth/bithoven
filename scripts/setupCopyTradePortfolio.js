@@ -286,7 +286,7 @@ async function setupCopyTradePortfolio() {
     console.log(newPortfolioInitialPositions.toString());
     console.log("\n");
 
-    const maxStopLossPercent = 10;
+    const maxStopLossPercent = 80;
     const minStopLossPercent = 1;
 
     const response3 = await prompts({

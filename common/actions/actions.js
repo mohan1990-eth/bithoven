@@ -185,7 +185,7 @@ async function copySellImpl(ctx, quantity) {
   // Retrieve key fleet addresses associated with the current portfolio
 
   if (quantity <= 0) {
-    throw new Error("CopyBuyImpl: Quantity must be greater than zero");
+    throw new Error("CopySellImpl: Quantity must be greater than zero");
   }
 
   if (ctx["isBuy"] !== false) {
